@@ -1,0 +1,173 @@
+{
+  "default": "mocha",
+  "themes": [
+    {
+      "id": "mocha",
+      "name": "Catppuccin 暗色",
+      "windowBg": "#1e1e2e",
+      "terminal": {
+        "background": "#11111b",
+        "foreground": "#cdd6f4",
+        "cursor": "#f5e0dc",
+        "selectionBackground": "#45475a"
+      },
+      "colors": {
+        "bgBase": "#1e1e2e",
+        "bgSurface": "#181825",
+        "bgOverlay": "#11111b",
+        "border": "#313244",
+        "textPrimary": "#cdd6f4",
+        "textSecondary": "#a6adc8",
+        "textMuted": "#6c7086",
+        "accent": "#cba6f7",
+        "hoverBg": "#313244",
+        "primaryBg": "#89b4fa",
+        "primaryFg": "#11111b",
+        "dangerBg": "#45273a",
+        "dangerText": "#f38ba8",
+        "modalBackdrop": "rgba(17, 17, 27, 0.72)",
+        "shadow": "rgba(0, 0, 0, 0.35)"
+      }
+    },
+    {
+      "id": "latte",
+      "name": "Catppuccin 浅色",
+      "windowBg": "#eff1f5",
+      "terminal": {
+        "background": "#e6e9ef",
+        "foreground": "#4c4f69",
+        "cursor": "#dc8a78",
+        "selectionBackground": "#bcc0cc"
+      },
+      "colors": {
+        "bgBase": "#eff1f5",
+        "bgSurface": "#e6e9ef",
+        "bgOverlay": "#dce0e8",
+        "border": "#ccd0da",
+        "textPrimary": "#4c4f69",
+        "textSecondary": "#5c5f77",
+        "textMuted": "#7c7f93",
+        "accent": "#8839ef",
+        "hoverBg": "#dce0e8",
+        "primaryBg": "#1e66f5",
+        "primaryFg": "#eff1f5",
+        "dangerBg": "#ffe0e0",
+        "dangerText": "#d20f39",
+        "modalBackdrop": "rgba(76, 79, 105, 0.35)",
+        "shadow": "rgba(76, 79, 105, 0.18)"
+      }
+    },
+    {
+      "id": "nord",
+      "name": "Nord 深蓝",
+      "windowBg": "#2e3440",
+      "terminal": {
+        "background": "#2e3440",
+        "foreground": "#d8dee9",
+        "cursor": "#eceff4",
+        "selectionBackground": "#434c5e"
+      },
+      "colors": {
+        "bgBase": "#2e3440",
+        "bgSurface": "#3b4252",
+        "bgOverlay": "#242933",
+        "border": "#4c566a",
+        "textPrimary": "#eceff4",
+        "textSecondary": "#d8dee9",
+        "textMuted": "#81a1c1",
+        "accent": "#88c0d0",
+        "hoverBg": "#434c5e",
+        "primaryBg": "#5e81ac",
+        "primaryFg": "#eceff4",
+        "dangerBg": "#4c3b42",
+        "dangerText": "#bf616a",
+        "modalBackdrop": "rgba(36, 41, 51, 0.72)",
+        "shadow": "rgba(0, 0, 0, 0.35)"
+      }
+    },
+    {
+      "id": "github-light",
+      "name": "GitHub 浅色",
+      "windowBg": "#f6f8fa",
+      "terminal": {
+        "background": "#ffffff",
+        "foreground": "#24292f",
+        "cursor": "#0969da",
+        "selectionBackground": "#b6e3ff"
+      },
+      "colors": {
+        "bgBase": "#f6f8fa",
+        "bgSurface": "#ffffff",
+        "bgOverlay": "#f6f8fa",
+        "border": "#d0d7de",
+        "textPrimary": "#24292f",
+        "textSecondary": "#57606a",
+        "textMuted": "#6e7781",
+        "accent": "#0969da",
+        "hoverBg": "#eaeef2",
+        "primaryBg": "#0969da",
+        "primaryFg": "#ffffff",
+        "dangerBg": "#ffebe9",
+        "dangerText": "#cf222e",
+        "modalBackdrop": "rgba(36, 41, 47, 0.4)",
+        "shadow": "rgba(36, 41, 47, 0.15)"
+      }
+    },
+    {
+      "id": "dracula",
+      "name": "Dracula 紫夜",
+      "windowBg": "#282a36",
+      "terminal": {
+        "background": "#21222c",
+        "foreground": "#f8f8f2",
+        "cursor": "#f8f8f2",
+        "selectionBackground": "#44475a"
+      },
+      "colors": {
+        "bgBase": "#282a36",
+        "bgSurface": "#21222c",
+        "bgOverlay": "#191a21",
+        "border": "#44475a",
+        "textPrimary": "#f8f8f2",
+        "textSecondary": "#bd93f9",
+        "textMuted": "#6272a4",
+        "accent": "#ff79c6",
+        "hoverBg": "#44475a",
+        "primaryBg": "#bd93f9",
+        "primaryFg": "#282a36",
+        "dangerBg": "#4a2f3f",
+        "dangerText": "#ff5555",
+        "modalBackdrop": "rgba(25, 26, 33, 0.75)",
+        "shadow": "rgba(0, 0, 0, 0.4)"
+      }
+    },
+    {
+      "id": "solarized-light",
+      "name": "Solarized 浅色",
+      "windowBg": "#fdf6e3",
+      "terminal": {
+        "background": "#eee8d5",
+        "foreground": "#586e75",
+        "cursor": "#268bd2",
+        "selectionBackground": "#93a1a1"
+      },
+      "colors": {
+        "bgBase": "#fdf6e3",
+        "bgSurface": "#eee8d5",
+        "bgOverlay": "#e8e2d0",
+        "border": "#d3cbb7",
+        "textPrimary": "#073642",
+        "textSecondary": "#586e75",
+        "textMuted": "#839496",
+        "accent": "#268bd2",
+        "hoverBg": "#e8e2d0",
+        "primaryBg": "#268bd2",
+        "primaryFg": "#fdf6e3",
+        "dangerBg": "#f4d9d0",
+        "dangerText": "#dc322f",
+        "modalBackdrop": "rgba(7, 54, 66, 0.35)",
+        "shadow": "rgba(7, 54, 66, 0.15)"
+      }
+    }
+  ]
+}

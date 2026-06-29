@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      :root {
+        --bg-base: #1e1e2e;
+        --bg-surface: #181825;
+        --bg-overlay: #11111b;
+        --border: #313244;
+        --text-primary: #cdd6f4;
+        --text-secondary: #a6adc8;
+        --text-muted: #6c7086;
+        --accent: #cba6f7;
+        --hover-bg: #313244;
+        --primary-bg: #89b4fa;
+        --primary-fg: #11111b;
+        --danger-bg: #45273a;
+        --danger-text: #f38ba8;
+        --modal-backdrop: rgba(17, 17, 27, 0.72);
+        --shadow: rgba(0, 0, 0, 0.35);
+      }
+    </style>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; frame-src * https: http:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Workspace</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-header-top">
+            <h1>AI Workspace</h1>
+            <button id="btn-theme" class="section-icon-btn" type="button" title="主题设置">🎨</button>
+          </div>
+          <p class="subtitle">统一办公工作台</p>
+        </div>
+
+        <nav class="sidebar-nav">
+          <section class="nav-section">
+            <div class="section-head">
+              <h2>常用网页</h2>
+              <button id="btn-manage-websites" class="section-icon-btn" type="button" title="管理网址">⚙️</button>
+            </div>
+            <ul id="website-list" class="nav-list"></ul>
+          </section>
+
+          <section class="nav-section">
+            <h2>内置</h2>
+            <ul class="nav-list">
+              <li>
+                <button id="btn-terminal-ps" class="nav-item builtin-item" type="button" data-shell="powershell">
+                  <span class="icon">⌨️</span>
+                  <span>PowerShell</span>
+                </button>
+              </li>
+              <li>
+                <button id="btn-terminal-git" class="nav-item builtin-item" type="button" data-shell="git">
+                  <span class="icon">🌿</span>
+                  <span>Git Bash</span>
+                </button>
+              </li>
+            </ul>
+            <p id="git-unavailable-hint" class="hint hidden">未检测到 Git，请安装 Git for Windows</p>
+          </section>
+
+          <section class="nav-section">
+            <div class="section-head">
+              <h2>本地应用</h2>
+              <button id="btn-manage-apps" class="section-icon-btn" type="button" title="管理本地应用">⚙️</button>
+            </div>
+            <ul id="local-app-list" class="nav-list"></ul>
+          </section>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="tab-bar" id="tab-bar">
+          <div id="tabs" class="tabs"></div>
+          <div class="tab-actions">
+            <button id="btn-reload" class="icon-btn" type="button" title="刷新">↻</button>
+            <button id="btn-external" class="icon-btn" type="button" title="在浏览器打开">↗</button>
+          </div>
+        </header>
+
+        <div class="content">
+          <div id="welcome" class="welcome">
+            <div class="welcome-card">
+              <h2>欢迎使用 AI Workspace</h2>
+              <p>从左侧选择常用网页、内置终端或本地应用开始使用。</p>
+              <ul>
+                <li>常用网页最多 8 个，点击标题栏右侧 ⚙️ 配置</li>
+                <li>PowerShell / Git Bash 内嵌在应用内</li>
+                <li>本地应用以外部窗口启动，可在设置中自定义</li>
+              </ul>
+            </div>
+          </div>
+
+          <div id="webview-container" class="webview-container hidden"></div>
+          <div id="terminal-container" class="terminal-container hidden">
+            <div class="terminal-header">
+              <span id="terminal-label">终端</span>
+            </div>
+            <div id="terminal-powershell" class="terminal-shell"></div>
+            <div id="terminal-git" class="terminal-shell hidden"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="website-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="website"></div>
+      <div class="modal-panel" role="dialog" aria-labelledby="website-modal-title">
+        <header class="modal-header">
+          <div>
+            <h3 id="website-modal-title">管理常用网页</h3>
+            <p class="modal-subtitle">最多保存 8 个，修改后立即生效</p>
+          </div>
+          <button class="icon-btn" type="button" data-close-modal="website" title="关闭">×</button>
+        </header>
+
+        <div class="modal-body">
+          <ul id="website-editor-list" class="editor-list"></ul>
+          <button id="btn-add-website" class="btn-secondary" type="button">＋ 添加网址</button>
+        </div>
+
+        <footer class="modal-footer">
+          <span id="editor-count" class="badge">0/8</span>
+          <div class="modal-actions">
+            <button class="btn-ghost" type="button" data-close-modal="website">取消</button>
+            <button id="btn-save-websites" class="btn-primary" type="button">保存</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <div id="apps-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="apps"></div>
+      <div class="modal-panel" role="dialog" aria-labelledby="apps-modal-title">
+        <header class="modal-header">
+          <div>
+            <h3 id="apps-modal-title">管理本地应用</h3>
+            <p class="modal-subtitle">填写 exe 或快捷方式（.lnk）的完整路径</p>
+          </div>
+          <button class="icon-btn" type="button" data-close-modal="apps" title="关闭">×</button>
+        </header>
+
+        <div class="modal-body">
+          <ul id="apps-editor-list" class="editor-list editor-list--apps"></ul>
+          <button id="btn-add-app" class="btn-secondary" type="button">＋ 添加应用</button>
+        </div>
+
+        <footer class="modal-footer">
+          <span id="apps-editor-count" class="badge">0 个应用</span>
+          <div class="modal-actions">
+            <button class="btn-ghost" type="button" data-close-modal="apps">取消</button>
+            <button id="btn-save-apps" class="btn-primary" type="button">保存</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <div id="theme-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="theme"></div>
+      <div class="modal-panel modal-panel--compact" role="dialog" aria-labelledby="theme-modal-title">
+        <header class="modal-header">
+          <div>
+            <h3 id="theme-modal-title">主题设置</h3>
+            <p class="modal-subtitle">选择界面配色，立即生效并自动保存</p>
+          </div>
+          <button class="icon-btn" type="button" data-close-modal="theme" title="关闭">×</button>
+        </header>
+
+        <div class="modal-body">
+          <div id="theme-grid" class="theme-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+[
+  { "id": "github", "name": "GitHub", "url": "https://github.com", "icon": "🐙" },
+  { "id": "gitee", "name": "Gitee", "url": "https://gitee.com", "icon": "🔶" }
+]

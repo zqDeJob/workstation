@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "icon": "✨",
+    "path": "D:\\software\\cursor\\Cursor.exe"
+  },
+  {
+    "id": "trae",
+    "name": "Trae CN",
+    "icon": "🔷",
+    "path": "D:\\software\\Trae CN\\Trae CN.exe"
+  },
+  {
+    "id": "clawx",
+    "name": "ClawX",
+    "icon": "🦞",
+    "path": "G:\\ai-center\\software\\ClawX\\ClawX.exe"
+  },
+  {
+    "id": "codex",
+    "name": "Codex++",
+    "icon": "⚡",
+    "path": "G:\\ai-center\\software\\Codex++\\codex-plus-plus.exe"
+  },
+  {
+    "id": "obsidian",
+    "name": "Obsidian",
+    "icon": "📝",
+    "path": "G:\\ai-center\\software\\Obsidian\\Obsidian.exe"
+  },
+  {
+    "id": "uniface",
+    "name": "Uniface 客户端",
+    "icon": "🔧",
+    "path": "C:\\Users\\kylin\\Desktop\\Uniface 客户端.lnk"
+  }
+]
