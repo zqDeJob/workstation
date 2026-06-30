@@ -3,12 +3,16 @@ const state = {
   activeTabId: null,
   activeView: 'welcome',
   activeShell: null,
+  terminalTabs: [],
+  activeTerminalTabId: null,
+  terminalCounters: { powershell: 0, git: 0 },
   terminals: {},
   terminalUnsubs: {},
   config: null,
   editingWebsites: [],
   editingApps: [],
   currentTheme: null,
+  findBar: { visible: false, text: '' },
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -17,6 +21,138 @@ function hideAllPanels() {
   $('#welcome').classList.add('hidden');
   $('#webview-container').classList.add('hidden');
   $('#terminal-container').classList.add('hidden');
+  closeFindBar();
+}
+
+function partitionForUrl(url) {
+  try {
+    const host = new URL(url).hostname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    return `persist:web-${host || 'default'}`;
+  } catch {
+    return 'persist:web-default';
+  }
+}
+
+function updateUrlBar() {
+  const tab = state.tabs.find((t) => t.id === state.activeTabId);
+  const urlInput = $('#url-display');
+  if (!tab || state.activeView !== 'web') {
+    urlInput.value = '';
+    return;
+  }
+  urlInput.value = tab.currentUrl || tab.url;
+}
+
+function updateTabUrl(tabId, url) {
+  const tab = state.tabs.find((t) => t.id === tabId);
+  if (!tab || !url) return;
+  tab.currentUrl = url;
+  if (tab.id === state.activeTabId) {
+    updateUrlBar();
+  }
+}
+
+async function copyCurrentUrl() {
+  const tab = state.tabs.find((t) => t.id === state.activeTabId);
+  const url = tab?.currentUrl || tab?.url;
+  if (!url) return;
+
+  try {
+    await navigator.clipboard.writeText(url);
+    const input = $('#url-display');
+    input.classList.add('url-input--copied');
+    input.title = '已复制';
+    setTimeout(() => {
+      input.classList.remove('url-input--copied');
+      input.title = '当前页面地址，点击复制';
+    }, 1200);
+  } catch {
+    $('#url-display').select();
+    document.execCommand('copy');
+  }
+}
+
+function openFindBar() {
+  if (state.activeView !== 'web') return;
+
+  state.findBar.visible = true;
+  $('#find-bar').classList.remove('hidden');
+
+  const input = $('#find-input');
+  if (state.findBar.text) {
+    input.value = state.findBar.text;
+  }
+  input.focus();
+  input.select();
+
+  if (input.value.trim()) {
+    runFind(input.value.trim(), false);
+  }
+}
+
+function closeFindBar() {
+  if (!state.findBar.visible) return;
+
+  state.findBar.visible = false;
+  state.findBar.text = $('#find-input').value;
+  $('#find-bar').classList.add('hidden');
+  $('#find-count').textContent = '';
+  getActiveWebview()?.stopFindInPage('clearSelection');
+}
+
+function runFind(text, findNext) {
+  const wv = getActiveWebview();
+  if (!wv || !text) return;
+
+  wv.findInPage(text, {
+    forward: true,
+    findNext,
+  });
+}
+
+function setupWebviewEvents(webview, tabId) {
+  const onNavigate = (e) => updateTabUrl(tabId, e.url);
+
+  webview.addEventListener('did-navigate', onNavigate);
+  webview.addEventListener('did-navigate-in-page', onNavigate);
+
+  webview.addEventListener('page-title-updated', (e) => {
+    const t = state.tabs.find((x) => x.id === tabId);
+    if (t && e.title) {
+      t.name = e.title;
+      renderTabs();
+    }
+  });
+
+  webview.addEventListener('found-in-page', (e) => {
+    if (!state.findBar.visible || e.result.finalUpdate === false) return;
+    const { activeMatchOrdinal, matches } = e.result;
+    if (matches === 0) {
+      $('#find-count').textContent = '无结果';
+    } else {
+      $('#find-count').textContent = `${activeMatchOrdinal}/${matches}`;
+    }
+  });
+}
+
+function createWebview(tab) {
+  const webview = document.createElement('webview');
+  const partition = partitionForUrl(tab.url);
+
+  webview.dataset.tabId = tab.id;
+  webview.classList.add('webview');
+  webview.setAttribute('allowpopups', '');
+  webview.setAttribute('partition', partition);
+  webview.setAttribute(
+    'webpreferences',
+    'contextIsolation=yes, nativeWindowOpen=yes, spellcheck=yes'
+  );
+
+  window.workspace.registerWebPartition(partition);
+  setupWebviewEvents(webview, tab.id);
+
+  webview.src = tab.url;
+  return webview;
 }
 
 function showWelcome() {
@@ -36,24 +172,258 @@ function showBuiltinTerminal(shellType) {
     return;
   }
 
+  openTerminalTab(shellType);
+}
+
+function ensureTerminalViewVisible() {
   hideAllPanels();
   state.activeView = 'terminal';
   state.activeTabId = null;
-  state.activeShell = shellType;
   updateBuiltinActive();
   renderTabs();
   $('#terminal-container').classList.remove('hidden');
   $('#tab-bar').classList.add('hidden');
-  $('#terminal-label').textContent = shellType === 'git' ? 'Git Bash' : 'PowerShell';
-  $('#terminal-powershell').classList.toggle('hidden', shellType !== 'powershell');
-  $('#terminal-git').classList.toggle('hidden', shellType !== 'git');
-  initTerminal(shellType);
+}
+
+function createTerminalTabId() {
+  return `term-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function shellLabel(shellType) {
+  return shellType === 'git' ? 'Git Bash' : 'PowerShell';
+}
+
+function shellIcon(shellType) {
+  return shellType === 'git' ? '🌿' : '⌨️';
+}
+
+function nextTerminalTitle(shellType) {
+  state.terminalCounters[shellType] = (state.terminalCounters[shellType] || 0) + 1;
+  return `${shellLabel(shellType)} ${state.terminalCounters[shellType]}`;
+}
+
+function openTerminalTab(shellType) {
+  if (shellType === 'git' && !state.config.gitAvailable) {
+    alert('未检测到 Git Bash，请先安装 Git for Windows。');
+    return;
+  }
+
+  ensureTerminalViewVisible();
+
+  const tab = {
+    id: createTerminalTabId(),
+    shellType,
+    title: nextTerminalTitle(shellType),
+    exited: false,
+  };
+
+  state.terminalTabs.push(tab);
+
+  const panel = document.createElement('div');
+  panel.className = 'terminal-panel';
+  panel.dataset.terminalTabId = tab.id;
+  $('#terminal-panels').appendChild(panel);
+
+  renderTerminalTabs();
+  showTerminalTab(tab.id);
+  initTerminalInstance(tab.id, shellType, panel);
+}
+
+function showTerminalTab(tabId) {
+  state.activeTerminalTabId = tabId;
+  const tab = state.terminalTabs.find((t) => t.id === tabId);
+  state.activeShell = tab?.shellType || null;
+
+  document.querySelectorAll('.terminal-panel').forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.terminalTabId === tabId);
+  });
+
+  renderTerminalTabs();
+  updateBuiltinActive();
+
+  const entry = state.terminals[tabId];
+  if (entry) {
+    fitTerminal(tabId);
+    entry.term.focus();
+  }
+}
+
+function closeTerminalTab(tabId, event) {
+  event?.stopPropagation();
+
+  const idx = state.terminalTabs.findIndex((t) => t.id === tabId);
+  if (idx === -1) return;
+
+  destroyTerminalInstance(tabId);
+  state.terminalTabs.splice(idx, 1);
+  document.querySelector(`.terminal-panel[data-terminal-tab-id="${tabId}"]`)?.remove();
+
+  if (state.activeTerminalTabId === tabId) {
+    if (state.terminalTabs.length > 0) {
+      showTerminalTab(state.terminalTabs[Math.max(0, idx - 1)].id);
+    } else {
+      state.activeTerminalTabId = null;
+      state.activeShell = null;
+      showWelcome();
+    }
+  } else {
+    renderTerminalTabs();
+  }
+}
+
+function renderTerminalTabs() {
+  const tabsEl = $('#terminal-tabs');
+  tabsEl.innerHTML = '';
+
+  state.terminalTabs.forEach((tab) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `terminal-tab${tab.id === state.activeTerminalTabId ? ' active' : ''}${
+      tab.exited ? ' exited' : ''
+    }`;
+    btn.innerHTML = `
+      <span>${shellIcon(tab.shellType)}</span>
+      <span class="terminal-tab-title">${escapeHtml(tab.title)}</span>
+      <span class="terminal-tab-close" data-close="${tab.id}">×</span>
+    `;
+    btn.addEventListener('click', () => showTerminalTab(tab.id));
+    btn.querySelector('.terminal-tab-close').addEventListener('click', (e) =>
+      closeTerminalTab(tab.id, e)
+    );
+    tabsEl.appendChild(btn);
+  });
+}
+
+function destroyTerminalInstance(tabId) {
+  const entry = state.terminals[tabId];
+  if (entry) {
+    window.workspace.terminalDestroy(entry.id);
+    try {
+      entry.term.dispose();
+    } catch {
+      /* ignore */
+    }
+    delete state.terminals[tabId];
+  }
+
+  const unsubs = state.terminalUnsubs[tabId];
+  if (unsubs) {
+    unsubs.unsubData();
+    unsubs.unsubExit();
+    delete state.terminalUnsubs[tabId];
+  }
+}
+
+function setupTerminalKeyHandler(term) {
+  term.attachCustomKeyEventHandler((event) => {
+    if (event.type !== 'keydown') return true;
+
+    const mod = event.ctrlKey || event.metaKey;
+
+    if (mod && event.shiftKey && (event.key === 'C' || event.key === 'c')) {
+      if (term.hasSelection()) {
+        navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+        return false;
+      }
+    }
+
+    if (mod && event.shiftKey && (event.key === 'V' || event.key === 'v')) {
+      navigator.clipboard.readText().then((text) => term.paste(text)).catch(() => {});
+      return false;
+    }
+
+    if (mod && (event.key === 'Insert' || event.code === 'Insert')) {
+      if (term.hasSelection()) {
+        navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+        return false;
+      }
+    }
+
+    if (event.shiftKey && (event.key === 'Insert' || event.code === 'Insert')) {
+      navigator.clipboard.readText().then((text) => term.paste(text)).catch(() => {});
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function isTypingContext() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+}
+
+function handleTerminalShortcuts(e) {
+  if (isTypingContext()) return;
+
+  const mod = e.ctrlKey || e.metaKey;
+
+  if (mod && e.shiftKey && (e.code === 'Backquote' || e.key === '`' || e.key === '~')) {
+    e.preventDefault();
+    const shellType = state.activeShell || 'powershell';
+    openTerminalTab(shellType);
+    return;
+  }
+
+  if (mod && e.shiftKey && (e.key === 'T' || e.key === 't')) {
+    e.preventDefault();
+    openTerminalTab(state.activeShell || 'powershell');
+    return;
+  }
+
+  if (mod && e.shiftKey && (e.key === 'W' || e.key === 'w')) {
+    e.preventDefault();
+    if (state.activeTerminalTabId) {
+      closeTerminalTab(state.activeTerminalTabId);
+    }
+    return;
+  }
+
+  if (mod && e.key === 'Tab') {
+    e.preventDefault();
+    switchTerminalTab(e.shiftKey ? -1 : 1);
+    return;
+  }
+
+  if (mod && e.key === 'PageDown') {
+    e.preventDefault();
+    switchTerminalTab(1);
+    return;
+  }
+
+  if (mod && e.key === 'PageUp') {
+    e.preventDefault();
+    switchTerminalTab(-1);
+    return;
+  }
+
+  if (mod && /^[1-9]$/.test(e.key)) {
+    const index = Number(e.key) - 1;
+    if (state.terminalTabs[index]) {
+      e.preventDefault();
+      showTerminalTab(state.terminalTabs[index].id);
+    }
+  }
+}
+
+function switchTerminalTab(direction) {
+  if (state.terminalTabs.length === 0) return;
+
+  const currentIdx = state.terminalTabs.findIndex((t) => t.id === state.activeTerminalTabId);
+  const baseIdx = currentIdx === -1 ? 0 : currentIdx;
+  const nextIdx =
+    (baseIdx + direction + state.terminalTabs.length) % state.terminalTabs.length;
+  showTerminalTab(state.terminalTabs[nextIdx].id);
 }
 
 function updateBuiltinActive() {
   document.querySelectorAll('.builtin-item').forEach((btn) => {
     const shell = btn.dataset.shell;
-    const active = state.activeView === 'terminal' && state.activeShell === shell;
+    const active =
+      state.activeView === 'terminal' &&
+      state.terminalTabs.some((t) => t.id === state.activeTerminalTabId && t.shellType === shell);
     btn.classList.toggle('active', active);
   });
 }
@@ -71,6 +441,8 @@ function showWebTab(tabId) {
   document.querySelectorAll('webview').forEach((wv) => {
     wv.classList.toggle('active', wv.dataset.tabId === tabId);
   });
+
+  updateUrlBar();
 }
 
 function createTabId() {
@@ -85,22 +457,10 @@ function openWebsite(name, url, icon = '🌐') {
   }
 
   const id = createTabId();
-  const tab = { id, name, url, icon };
+  const tab = { id, name, url, icon, currentUrl: url };
   state.tabs.push(tab);
 
-  const webview = document.createElement('webview');
-  webview.dataset.tabId = id;
-  webview.src = url;
-  webview.classList.add('webview');
-  webview.setAttribute('allowpopups', '');
-  webview.addEventListener('page-title-updated', (e) => {
-    const t = state.tabs.find((x) => x.id === id);
-    if (t && e.title) {
-      t.name = e.title;
-      renderTabs();
-    }
-  });
-
+  const webview = createWebview(tab);
   $('#webview-container').appendChild(webview);
   showWebTab(id);
 }
@@ -115,6 +475,7 @@ function closeTab(tabId, event) {
   document.querySelector(`webview[data-tab-id="${tabId}"]`)?.remove();
 
   if (state.activeTabId === tabId) {
+    closeFindBar();
     if (state.tabs.length > 0) {
       showWebTab(state.tabs[Math.max(0, idx - 1)].id);
     } else {
@@ -251,13 +612,8 @@ function terminalKey(shellType) {
   return shellType === 'git' ? 'git' : 'powershell';
 }
 
-async function initTerminal(shellType) {
+async function initTerminalInstance(tabId, shellType, panelEl) {
   const key = terminalKey(shellType);
-
-  if (state.terminals[key]) {
-    fitTerminal(key);
-    return;
-  }
 
   const term = new Terminal({
     cursorBlink: true,
@@ -268,12 +624,11 @@ async function initTerminal(shellType) {
 
   const fitAddon = new FitAddon.FitAddon();
   term.loadAddon(fitAddon);
+  term.open(panelEl);
+  setupTerminalKeyHandler(term);
 
-  const containerId = shellType === 'git' ? 'terminal-git' : 'terminal-powershell';
-  term.open($(`#${containerId}`));
-
-  const terminalId = `terminal-${key}`;
-  state.terminals[key] = { term, fitAddon, id: terminalId };
+  const terminalId = tabId;
+  state.terminals[tabId] = { term, fitAddon, id: terminalId, shellType };
 
   const result = await window.workspace.terminalCreate({
     id: terminalId,
@@ -294,27 +649,35 @@ async function initTerminal(shellType) {
   const unsubExit = window.workspace.onTerminalExit(({ id }) => {
     if (id === terminalId) {
       term.writeln('\r\n\x1b[33m[终端已退出]\x1b[0m');
+      const tab = state.terminalTabs.find((t) => t.id === tabId);
+      if (tab) {
+        tab.exited = true;
+        renderTerminalTabs();
+      }
     }
   });
 
-  state.terminalUnsubs[key] = { unsubData, unsubExit };
+  state.terminalUnsubs[tabId] = { unsubData, unsubExit };
 
   term.onData((data) => {
     window.workspace.terminalInput(terminalId, data);
   });
 
-  fitTerminal(key);
+  fitTerminal(tabId);
+  term.focus();
 
   if (!state._terminalResizeObserver) {
     state._terminalResizeObserver = new ResizeObserver(() => {
-      if (state.activeShell) fitTerminal(terminalKey(state.activeShell));
+      if (state.activeTerminalTabId) {
+        fitTerminal(state.activeTerminalTabId);
+      }
     });
     state._terminalResizeObserver.observe($('#terminal-container'));
   }
 }
 
-function fitTerminal(key) {
-  const entry = state.terminals[key];
+function fitTerminal(tabId) {
+  const entry = state.terminals[tabId];
   if (!entry) return;
 
   try {
@@ -349,14 +712,19 @@ function renderSidebar() {
   }
 
   const gitBtn = $('#btn-terminal-git');
+  const gitNewBtn = $('#btn-terminal-new-git');
   const gitHint = $('#git-unavailable-hint');
   if (state.config.gitAvailable) {
     gitBtn.disabled = false;
     gitBtn.classList.remove('disabled');
+    gitNewBtn.disabled = false;
+    gitNewBtn.classList.remove('disabled');
     gitHint.classList.add('hidden');
   } else {
     gitBtn.disabled = true;
     gitBtn.classList.add('disabled');
+    gitNewBtn.disabled = true;
+    gitNewBtn.classList.add('disabled');
     gitHint.classList.remove('hidden');
   }
 
@@ -557,6 +925,8 @@ async function saveApps() {
 function bindEvents() {
   $('#btn-terminal-ps').addEventListener('click', () => showBuiltinTerminal('powershell'));
   $('#btn-terminal-git').addEventListener('click', () => showBuiltinTerminal('git'));
+  $('#btn-terminal-new-ps').addEventListener('click', () => openTerminalTab('powershell'));
+  $('#btn-terminal-new-git').addEventListener('click', () => openTerminalTab('git'));
 
   $('#btn-manage-websites').addEventListener('click', openWebsiteModal);
   $('#btn-add-website').addEventListener('click', addWebsiteRow);
@@ -580,22 +950,79 @@ function bindEvents() {
     el.addEventListener('click', closeThemeModal);
   });
 
+  $('#btn-find').addEventListener('click', openFindBar);
+
+  $('#btn-copy-url').addEventListener('click', copyCurrentUrl);
+  $('#url-display').addEventListener('click', copyCurrentUrl);
+
+  $('#find-input').addEventListener('input', (e) => {
+    const text = e.target.value.trim();
+    state.findBar.text = e.target.value;
+    if (!text) {
+      $('#find-count').textContent = '';
+      getActiveWebview()?.stopFindInPage('clearSelection');
+      return;
+    }
+    runFind(text, false);
+  });
+
+  $('#find-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runFind(e.target.value.trim(), true);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeFindBar();
+    }
+  });
+
+  $('#btn-find-prev').addEventListener('click', () => {
+    const text = $('#find-input').value.trim();
+    if (text) {
+      getActiveWebview()?.findInPage(text, { forward: false, findNext: true });
+    }
+  });
+
+  $('#btn-find-next').addEventListener('click', () => {
+    const text = $('#find-input').value.trim();
+    if (text) runFind(text, true);
+  });
+
+  $('#btn-find-close').addEventListener('click', closeFindBar);
+
   $('#btn-reload').addEventListener('click', () => {
     getActiveWebview()?.reload();
   });
 
   $('#btn-external').addEventListener('click', () => {
     const tab = state.tabs.find((t) => t.id === state.activeTabId);
-    if (tab) window.workspace.openExternal(tab.url);
+    const url = tab?.currentUrl || tab?.url;
+    if (url) window.workspace.openExternal(url);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (state.activeView === 'web') {
+      if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        openFindBar();
+        return;
+      }
+
+      if (e.key === 'Escape' && state.findBar.visible) {
+        e.preventDefault();
+        closeFindBar();
+      }
+      return;
+    }
+
+    if (state.activeView === 'terminal') {
+      handleTerminalShortcuts(e);
+    }
   });
 
   window.addEventListener('beforeunload', () => {
-    Object.values(state.terminals).forEach((entry) => {
-      window.workspace.terminalDestroy(entry.id);
-    });
-    Object.values(state.terminalUnsubs).forEach(({ unsubData, unsubExit }) => {
-      unsubData();
-      unsubExit();
+    Object.keys(state.terminals).forEach((tabId) => {
+      destroyTerminalInstance(tabId);
     });
   });
 }

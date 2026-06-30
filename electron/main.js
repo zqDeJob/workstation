@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -8,6 +8,7 @@ const pty = require('node-pty');
 const MAX_WEBSITES = 8;
 let mainWindow = null;
 const terminals = new Map();
+const webPartitions = new Set();
 
 const configDir = () => {
   if (app.isPackaged) {
@@ -305,6 +306,19 @@ function saveThemeId(themeId) {
   return { ok: true, theme: getThemeById(themeId) };
 }
 
+function registerWebPartition(partition) {
+  if (typeof partition === 'string' && partition.startsWith('persist:')) {
+    webPartitions.add(partition);
+  }
+}
+
+async function flushWebSessions() {
+  const tasks = [...webPartitions].map((partition) =>
+    session.fromPartition(partition).cookies.flushStore().catch(() => {})
+  );
+  await Promise.all(tasks);
+}
+
 function createWindow() {
   const theme = getThemeById(loadThemeId());
 
@@ -346,7 +360,13 @@ app.on('window-all-closed', () => {
   });
   terminals.clear();
 
+  flushWebSessions();
+
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  flushWebSessions();
 });
 
 ipcMain.handle('get-config', () => {
@@ -388,6 +408,10 @@ ipcMain.handle('save-theme', (_event, themeId) => {
 
 ipcMain.handle('open-external', (_event, url) => {
   shell.openExternal(url);
+});
+
+ipcMain.on('register-web-partition', (_event, partition) => {
+  registerWebPartition(partition);
 });
 
 ipcMain.handle('launch-app', (_event, appItem) => {

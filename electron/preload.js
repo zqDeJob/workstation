@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('workspace', {
   saveLocalApps: (apps) => ipcRenderer.invoke('save-local-apps', apps),
   saveTheme: (themeId) => ipcRenderer.invoke('save-theme', themeId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  registerWebPartition: (partition) => ipcRenderer.send('register-web-partition', partition),
   launchApp: (appItem) => ipcRenderer.invoke('launch-app', appItem),
 
   terminalCreate: (opts) => ipcRenderer.invoke('terminal-create', opts),

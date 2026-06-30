@@ -81,10 +81,19 @@
 
       <main class="main">
         <header class="tab-bar" id="tab-bar">
-          <div id="tabs" class="tabs"></div>
-          <div class="tab-actions">
-            <button id="btn-reload" class="icon-btn" type="button" title="刷新">↻</button>
-            <button id="btn-external" class="icon-btn" type="button" title="在浏览器打开">↗</button>
+          <div class="tab-bar-row tab-bar-row--tabs">
+            <div id="tabs" class="tabs"></div>
+            <div class="tab-actions">
+              <button id="btn-find" class="icon-btn" type="button" title="页内搜索 (Ctrl+F)">🔍</button>
+              <button id="btn-reload" class="icon-btn" type="button" title="刷新">↻</button>
+              <button id="btn-external" class="icon-btn" type="button" title="在浏览器打开">↗</button>
+            </div>
+          </div>
+          <div class="tab-bar-row tab-bar-row--url">
+            <div class="url-bar">
+              <input id="url-display" class="url-input" type="text" readonly title="当前页面地址，点击复制" />
+              <button id="btn-copy-url" class="icon-btn" type="button" title="复制链接">⧉</button>
+            </div>
           </div>
         </header>
 
@@ -95,19 +104,30 @@
               <p>从左侧选择常用网页、内置终端或本地应用开始使用。</p>
               <ul>
                 <li>常用网页最多 8 个，点击标题栏右侧 ⚙️ 配置</li>
-                <li>PowerShell / Git Bash 内嵌在应用内</li>
+                <li>PowerShell / Git Bash 支持多标签与快捷键（Ctrl+Shift+` 新建）</li>
                 <li>本地应用以外部窗口启动，可在设置中自定义</li>
               </ul>
             </div>
           </div>
 
-          <div id="webview-container" class="webview-container hidden"></div>
-          <div id="terminal-container" class="terminal-container hidden">
-            <div class="terminal-header">
-              <span id="terminal-label">终端</span>
+          <div id="webview-container" class="webview-container hidden">
+            <div id="find-bar" class="find-bar hidden">
+              <input id="find-input" class="find-input" type="text" placeholder="页内搜索…" spellcheck="false" />
+              <span id="find-count" class="find-count"></span>
+              <button id="btn-find-prev" class="icon-btn" type="button" title="上一个 (Shift+Enter)">↑</button>
+              <button id="btn-find-next" class="icon-btn" type="button" title="下一个 (Enter)">↓</button>
+              <button id="btn-find-close" class="icon-btn" type="button" title="关闭 (Esc)">×</button>
             </div>
-            <div id="terminal-powershell" class="terminal-shell"></div>
-            <div id="terminal-git" class="terminal-shell hidden"></div>
+          </div>
+          <div id="terminal-container" class="terminal-container hidden">
+            <header class="terminal-header">
+              <div id="terminal-tabs" class="terminal-tabs"></div>
+              <div class="terminal-header-actions">
+                <button id="btn-terminal-new-ps" class="terminal-action-btn" type="button" title="新建 PowerShell">+ PS</button>
+                <button id="btn-terminal-new-git" class="terminal-action-btn" type="button" title="新建 Git Bash">+ Git</button>
+              </div>
+            </header>
+            <div id="terminal-panels" class="terminal-panels"></div>
           </div>
         </div>
       </main>

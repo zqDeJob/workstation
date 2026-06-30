@@ -183,15 +183,30 @@ button {
 
 .tab-bar {
   display: flex;
-  align-items: center;
-  height: 40px;
+  flex-direction: column;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
-  padding: 0 8px 0 4px;
 }
 
 .tab-bar.hidden {
   display: none;
+}
+
+.tab-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+
+.tab-bar-row--tabs {
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-bar-row--url {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .tabs {
@@ -199,6 +214,79 @@ button {
   flex: 1;
   overflow-x: auto;
   gap: 2px;
+  min-width: 0;
+}
+
+.url-bar {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.url-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-overlay);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.url-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.url-input--copied {
+  border-color: #a6e3a1;
+  color: #a6e3a1;
+}
+
+.find-bar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.find-input {
+  width: 200px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.find-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.find-count {
+  min-width: 48px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .tab {
@@ -242,7 +330,7 @@ button {
 .tab-actions {
   display: flex;
   gap: 4px;
-  margin-left: 8px;
+  flex-shrink: 0;
 }
 
 .icon-btn {
@@ -329,20 +417,106 @@ button {
 }
 
 .terminal-header {
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.terminal-tabs {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  padding: 6px 10px;
+  border-radius: 6px;
   font-size: 12px;
+  white-space: nowrap;
   color: var(--text-secondary);
 }
 
-.terminal-shell {
-  flex: 1;
-  min-height: 0;
-  padding: 8px;
+.terminal-tab:hover {
+  background: var(--hover-bg);
 }
 
-.terminal-shell.hidden {
+.terminal-tab.active {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.terminal-tab.exited {
+  opacity: 0.65;
+}
+
+.terminal-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-tab-close {
+  opacity: 0.5;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.terminal-tab-close:hover {
+  opacity: 1;
+  color: var(--danger-text);
+}
+
+.terminal-header-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.terminal-action-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+}
+
+.terminal-action-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.terminal-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.terminal-panels {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.terminal-panel {
+  position: absolute;
+  inset: 0;
+  padding: 8px;
   display: none;
+}
+
+.terminal-panel.active {
+  display: block;
 }
 
 .modal {
