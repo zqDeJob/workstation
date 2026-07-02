@@ -480,6 +480,15 @@ button {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  align-items: center;
+}
+
+.terminal-folder-actions {
+  display: flex;
+  gap: 4px;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid var(--border);
 }
 
 .terminal-action-btn {

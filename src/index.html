@@ -92,6 +92,7 @@
           <div class="tab-bar-row tab-bar-row--url">
             <div class="url-bar">
               <input id="url-display" class="url-input" type="text" readonly title="当前页面地址，点击复制" />
+              <button id="btn-sync-cookies" class="icon-btn" type="button" title="从 Chrome/Edge 同步登录">⟳</button>
               <button id="btn-copy-url" class="icon-btn" type="button" title="复制链接">⧉</button>
             </div>
           </div>
@@ -123,6 +124,12 @@
             <header class="terminal-header">
               <div id="terminal-tabs" class="terminal-tabs"></div>
               <div class="terminal-header-actions">
+                <div class="terminal-folder-actions" title="在当前终端打开文件夹">
+                  <button id="btn-terminal-folder-desktop" class="terminal-action-btn" type="button" title="打开桌面">桌面</button>
+                  <button id="btn-terminal-folder-documents" class="terminal-action-btn" type="button" title="打开文档">文档</button>
+                  <button id="btn-terminal-folder-downloads" class="terminal-action-btn" type="button" title="打开下载">下载</button>
+                  <button id="btn-terminal-folder-pick" class="terminal-action-btn" type="button" title="选择文件夹">📁</button>
+                </div>
                 <button id="btn-terminal-new-ps" class="terminal-action-btn" type="button" title="新建 PowerShell">+ PS</button>
                 <button id="btn-terminal-new-git" class="terminal-action-btn" type="button" title="新建 Git Bash">+ Git</button>
               </div>

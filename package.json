@@ -6,10 +6,14 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
+    "postinstall": "electron-builder install-app-deps",
     "build": "electron-builder --win",
     "build:portable": "electron-builder --win portable"
   },
-  "keywords": ["electron", "workspace"],
+  "keywords": [
+    "electron",
+    "workspace"
+  ],
   "author": "kylin",
   "license": "MIT",
   "devDependencies": {
@@ -19,7 +23,10 @@
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
-    "node-pty": "^1.0.0"
+    "better-sqlite3": "^12.11.1",
+    "node-pty": "^1.0.0",
+    "sql.js": "^1.14.1",
+    "ws": "^8.21.0"
   },
   "build": {
     "appId": "com.aiworkspace.desktop",
@@ -35,7 +42,8 @@
       "node_modules/**/*"
     ],
     "asarUnpack": [
-      "node_modules/node-pty/**/*"
+      "node_modules/node-pty/**/*",
+      "node_modules/better-sqlite3/**/*"
     ],
     "extraResources": [
       {
@@ -52,7 +60,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -62,7 +72,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "AI Workspace",
-      "installerLanguages": ["zh_CN", "en_US"]
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ]
     }
   }
 }

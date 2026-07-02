@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('workspace', {
   saveTheme: (themeId) => ipcRenderer.invoke('save-theme', themeId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   registerWebPartition: (partition) => ipcRenderer.send('register-web-partition', partition),
+  syncBrowserCookies: (url) => ipcRenderer.invoke('sync-browser-cookies', url),
   launchApp: (appItem) => ipcRenderer.invoke('launch-app', appItem),
 
   terminalCreate: (opts) => ipcRenderer.invoke('terminal-create', opts),
@@ -14,6 +15,8 @@ contextBridge.exposeInMainWorld('workspace', {
   terminalResize: (id, cols, rows) =>
     ipcRenderer.send('terminal-resize', { id, cols, rows }),
   terminalDestroy: (id) => ipcRenderer.send('terminal-destroy', { id }),
+  getKnownFolders: () => ipcRenderer.invoke('get-known-folders'),
+  pickFolder: () => ipcRenderer.invoke('pick-folder'),
 
   onTerminalData: (callback) => {
     const handler = (_event, payload) => callback(payload);

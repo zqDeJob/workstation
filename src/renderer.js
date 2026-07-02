@@ -13,6 +13,8 @@ const state = {
   editingApps: [],
   currentTheme: null,
   findBar: { visible: false, text: '' },
+  browserPartition: 'persist:browser',
+  knownFolders: {},
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -24,13 +26,29 @@ function hideAllPanels() {
   closeFindBar();
 }
 
-function partitionForUrl(url) {
-  try {
-    const host = new URL(url).hostname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    return `persist:web-${host || 'default'}`;
-  } catch {
-    return 'persist:web-default';
+function getBrowserPartition() {
+  return state.browserPartition || 'persist:browser';
+}
+
+async function syncBrowserCookiesForUrl(url, { reload = false } = {}) {
+  if (!url || state.config?.browser?.cookieSync === false) {
+    return { ok: true, imported: 0 };
   }
+
+  const result = await window.workspace.syncBrowserCookies(url);
+  if (!result.ok && result.error) {
+    console.warn('[cookie-sync]', result.error);
+  } else if (result.blocked && result.message) {
+    console.warn('[cookie-sync]', result.message);
+  } else if (result.imported > 0) {
+    console.info('[cookie-sync]', `已同步 ${result.imported} 条 Cookie`);
+  }
+
+  if (reload) {
+    getActiveWebview()?.reload();
+  }
+
+  return result;
 }
 
 function updateUrlBar() {
@@ -135,9 +153,9 @@ function setupWebviewEvents(webview, tabId) {
   });
 }
 
-function createWebview(tab) {
+function createWebviewElement(tab) {
   const webview = document.createElement('webview');
-  const partition = partitionForUrl(tab.url);
+  const partition = getBrowserPartition();
 
   webview.dataset.tabId = tab.id;
   webview.classList.add('webview');
@@ -150,7 +168,13 @@ function createWebview(tab) {
 
   window.workspace.registerWebPartition(partition);
   setupWebviewEvents(webview, tab.id);
+  return webview;
+}
 
+async function mountWebview(tab) {
+  const webview = createWebviewElement(tab);
+  $('#webview-container').appendChild(webview);
+  await syncBrowserCookiesForUrl(tab.url);
   webview.src = tab.url;
   return webview;
 }
@@ -202,7 +226,7 @@ function nextTerminalTitle(shellType) {
   return `${shellLabel(shellType)} ${state.terminalCounters[shellType]}`;
 }
 
-function openTerminalTab(shellType) {
+function openTerminalTab(shellType, { cwd } = {}) {
   if (shellType === 'git' && !state.config.gitAvailable) {
     alert('未检测到 Git Bash，请先安装 Git for Windows。');
     return;
@@ -215,6 +239,7 @@ function openTerminalTab(shellType) {
     shellType,
     title: nextTerminalTitle(shellType),
     exited: false,
+    cwd: cwd || null,
   };
 
   state.terminalTabs.push(tab);
@@ -226,7 +251,7 @@ function openTerminalTab(shellType) {
 
   renderTerminalTabs();
   showTerminalTab(tab.id);
-  initTerminalInstance(tab.id, shellType, panel);
+  initTerminalInstance(tab.id, shellType, panel, tab.cwd);
 }
 
 function showTerminalTab(tabId) {
@@ -449,9 +474,10 @@ function createTabId() {
   return `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function openWebsite(name, url, icon = '🌐') {
+async function openWebsite(name, url, icon = '🌐') {
   const existing = state.tabs.find((t) => t.url === url);
   if (existing) {
+    await syncBrowserCookiesForUrl(existing.currentUrl || existing.url);
     showWebTab(existing.id);
     return;
   }
@@ -460,9 +486,8 @@ function openWebsite(name, url, icon = '🌐') {
   const tab = { id, name, url, icon, currentUrl: url };
   state.tabs.push(tab);
 
-  const webview = createWebview(tab);
-  $('#webview-container').appendChild(webview);
   showWebTab(id);
+  await mountWebview(tab);
 }
 
 function closeTab(tabId, event) {
@@ -612,7 +637,68 @@ function terminalKey(shellType) {
   return shellType === 'git' ? 'git' : 'powershell';
 }
 
-async function initTerminalInstance(tabId, shellType, panelEl) {
+function toGitBashPath(folderPath) {
+  const normalized = folderPath.replace(/\\/g, '/');
+  const match = /^([A-Za-z]):\/(.*)$/.exec(normalized);
+  if (!match) return normalized;
+  return `/${match[1].toLowerCase()}/${match[2]}`;
+}
+
+function buildTerminalCdCommand(shellType, folderPath) {
+  if (shellType === 'git') {
+    const bashPath = toGitBashPath(folderPath);
+    return `cd '${bashPath.replace(/'/g, "'\\''")}'\r`;
+  }
+
+  const psPath = folderPath.replace(/'/g, "''");
+  return `Set-Location -LiteralPath '${psPath}'\r`;
+}
+
+function cdTerminal(tabId, folderPath) {
+  const tab = state.terminalTabs.find((t) => t.id === tabId);
+  const entry = state.terminals[tabId];
+  if (!tab || !entry || tab.exited) return false;
+
+  window.workspace.terminalInput(entry.id, buildTerminalCdCommand(tab.shellType, folderPath));
+  entry.term.focus();
+  return true;
+}
+
+function openFolderInTerminal(folderPath) {
+  if (!folderPath) return;
+
+  const hasActiveTerminal =
+    state.activeView === 'terminal' &&
+    state.activeTerminalTabId &&
+    state.terminalTabs.some((t) => t.id === state.activeTerminalTabId && !t.exited);
+
+  if (hasActiveTerminal) {
+    cdTerminal(state.activeTerminalTabId, folderPath);
+    return;
+  }
+
+  openTerminalTab('powershell', { cwd: folderPath });
+}
+
+async function openKnownFolder(key) {
+  const folder = state.knownFolders[key];
+  if (!folder?.path) {
+    alert('未找到该文件夹');
+    return;
+  }
+  openFolderInTerminal(folder.path);
+}
+
+async function pickFolderForTerminal() {
+  const result = await window.workspace.pickFolder();
+  if (!result.ok) {
+    if (result.error) alert(result.error);
+    return;
+  }
+  openFolderInTerminal(result.path);
+}
+
+async function initTerminalInstance(tabId, shellType, panelEl, cwd) {
   const key = terminalKey(shellType);
 
   const term = new Terminal({
@@ -635,6 +721,7 @@ async function initTerminalInstance(tabId, shellType, panelEl) {
     cols: term.cols,
     rows: term.rows,
     shellType: key,
+    cwd,
   });
 
   if (!result.ok) {
@@ -922,11 +1009,31 @@ async function saveApps() {
   closeAppsModal();
 }
 
+function updateTerminalFolderButtons() {
+  const mapping = {
+    desktop: '#btn-terminal-folder-desktop',
+    documents: '#btn-terminal-folder-documents',
+    downloads: '#btn-terminal-folder-downloads',
+  };
+
+  for (const [key, selector] of Object.entries(mapping)) {
+    const btn = $(selector);
+    if (!btn) continue;
+    const folder = state.knownFolders[key];
+    btn.disabled = !folder?.path;
+    btn.title = folder?.path ? `打开${folder.label}` : '文件夹不可用';
+  }
+}
+
 function bindEvents() {
   $('#btn-terminal-ps').addEventListener('click', () => showBuiltinTerminal('powershell'));
   $('#btn-terminal-git').addEventListener('click', () => showBuiltinTerminal('git'));
   $('#btn-terminal-new-ps').addEventListener('click', () => openTerminalTab('powershell'));
   $('#btn-terminal-new-git').addEventListener('click', () => openTerminalTab('git'));
+  $('#btn-terminal-folder-desktop').addEventListener('click', () => openKnownFolder('desktop'));
+  $('#btn-terminal-folder-documents').addEventListener('click', () => openKnownFolder('documents'));
+  $('#btn-terminal-folder-downloads').addEventListener('click', () => openKnownFolder('downloads'));
+  $('#btn-terminal-folder-pick').addEventListener('click', pickFolderForTerminal);
 
   $('#btn-manage-websites').addEventListener('click', openWebsiteModal);
   $('#btn-add-website').addEventListener('click', addWebsiteRow);
@@ -954,6 +1061,37 @@ function bindEvents() {
 
   $('#btn-copy-url').addEventListener('click', copyCurrentUrl);
   $('#url-display').addEventListener('click', copyCurrentUrl);
+
+  $('#btn-sync-cookies').addEventListener('click', async () => {
+    const tab = state.tabs.find((t) => t.id === state.activeTabId);
+    const url = tab?.currentUrl || tab?.url;
+    if (!url) return;
+
+    const result = await syncBrowserCookiesForUrl(url, { reload: true });
+    if (!result.ok) {
+      alert(`同步失败：${result.error || '未知错误'}`);
+      return;
+    }
+    if (result.blocked && result.message) {
+      alert(result.message);
+      $('#url-display').title = result.message;
+      return;
+    }
+    if (result.imported > 0) {
+      const source = result.browsers?.join('/') || '浏览器';
+      $('#url-display').title = `已从 ${source} 同步 ${result.imported} 条 Cookie`;
+      return;
+    }
+    if (result.skipped) {
+      $('#url-display').title = '浏览器 Cookie 同步已关闭';
+      return;
+    }
+    alert(
+      result.message ||
+        '未找到可同步的登录 Cookie。请关闭 Chrome 后重试，或在应用内登录一次（之后会自动记住）'
+    );
+    $('#url-display').title = result.message || '未同步到登录 Cookie';
+  });
 
   $('#find-input').addEventListener('input', (e) => {
     const text = e.target.value.trim();
@@ -990,7 +1128,12 @@ function bindEvents() {
 
   $('#btn-find-close').addEventListener('click', closeFindBar);
 
-  $('#btn-reload').addEventListener('click', () => {
+  $('#btn-reload').addEventListener('click', async () => {
+    const tab = state.tabs.find((t) => t.id === state.activeTabId);
+    const url = tab?.currentUrl || tab?.url;
+    if (url) {
+      await syncBrowserCookiesForUrl(url);
+    }
     getActiveWebview()?.reload();
   });
 
@@ -1029,6 +1172,9 @@ function bindEvents() {
 
 async function init() {
   state.config = await window.workspace.getConfig();
+  state.knownFolders = await window.workspace.getKnownFolders();
+  state.browserPartition = state.config.browser?.partition || 'persist:browser';
+  updateTerminalFolderButtons();
   applyTheme(state.config.currentTheme);
   renderSidebar();
   bindEvents();

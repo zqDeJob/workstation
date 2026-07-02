@@ -1,9 +1,14 @@
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { spawn, execSync, execFileSync } = require('child_process');
 const pty = require('node-pty');
+const {
+  BROWSER_PARTITION,
+  listAvailableBrowsers,
+  importCookiesToSession,
+} = require('./browser-cookies');
 
 const MAX_WEBSITES = 8;
 let mainWindow = null;
@@ -16,6 +21,51 @@ const configDir = () => {
   }
   return path.join(__dirname, '..', 'config');
 };
+
+function firstExistingDir(...paths) {
+  for (const candidate of paths) {
+    if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function getKnownFolders() {
+  const home = os.homedir();
+  const folders = {};
+
+  const desktop = firstExistingDir(
+    path.join(home, 'Desktop'),
+    path.join(home, '桌面')
+  );
+  if (desktop) folders.desktop = { label: '桌面', path: desktop };
+
+  const documents = firstExistingDir(
+    path.join(home, 'Documents'),
+    path.join(home, '文档')
+  );
+  if (documents) folders.documents = { label: '文档', path: documents };
+
+  const downloads = firstExistingDir(
+    path.join(home, 'Downloads'),
+    path.join(home, '下载')
+  );
+  if (downloads) folders.downloads = { label: '下载', path: downloads };
+
+  if (fs.existsSync(home)) {
+    folders.home = { label: '用户目录', path: home };
+  }
+
+  return folders;
+}
+
+function resolveTerminalCwd(cwd) {
+  if (cwd && fs.existsSync(cwd) && fs.statSync(cwd).isDirectory()) {
+    return path.resolve(cwd);
+  }
+  return os.homedir();
+}
 
 function focusScriptPath() {
   if (app.isPackaged) {
@@ -306,6 +356,36 @@ function saveThemeId(themeId) {
   return { ok: true, theme: getThemeById(themeId) };
 }
 
+function loadBrowserSettings() {
+  const settings = readJson(userSettingsPath(), {});
+  const browser = settings.browser || {};
+  const cookieSource = browser.cookieSource;
+
+  return {
+    cookieSync: browser.cookieSync !== false,
+    cookieSource: ['chrome', 'edge', 'auto'].includes(cookieSource) ? cookieSource : 'auto',
+  };
+}
+
+function getBrowserSession() {
+  return session.fromPartition(BROWSER_PARTITION);
+}
+
+function configureBrowserSession() {
+  registerWebPartition(BROWSER_PARTITION);
+  const browserSession = getBrowserSession();
+
+  browserSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed = new Set([
+      'clipboard-read',
+      'clipboard-sanitized-write',
+      'media',
+      'fullscreen',
+    ]);
+    callback(allowed.has(permission));
+  });
+}
+
 function registerWebPartition(partition) {
   if (typeof partition === 'string' && partition.startsWith('persist:')) {
     webPartitions.add(partition);
@@ -341,6 +421,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  configureBrowserSession();
   ensureUserWebsites();
   ensureUserLocalApps();
   createWindow();
@@ -379,6 +460,11 @@ ipcMain.handle('get-config', () => {
     themes: loadThemesConfig().themes,
     themeId,
     currentTheme: getThemeById(themeId),
+    browser: {
+      ...loadBrowserSettings(),
+      partition: BROWSER_PARTITION,
+      availableBrowsers: listAvailableBrowsers(),
+    },
   };
 });
 
@@ -414,6 +500,25 @@ ipcMain.on('register-web-partition', (_event, partition) => {
   registerWebPartition(partition);
 });
 
+ipcMain.handle('sync-browser-cookies', async (_event, url) => {
+  const { cookieSync, cookieSource } = loadBrowserSettings();
+
+  if (!cookieSync) {
+    return { ok: true, imported: 0, skipped: true };
+  }
+
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return { ok: false, error: '无效的网址' };
+  }
+
+  try {
+    const result = await importCookiesToSession(getBrowserSession(), url, cookieSource);
+    return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: err.message || '同步浏览器 Cookie 失败' };
+  }
+});
+
 ipcMain.handle('launch-app', (_event, appItem) => {
   const launchPath = appItem.launchPath;
   if (!launchPath) {
@@ -423,7 +528,7 @@ ipcMain.handle('launch-app', (_event, appItem) => {
   return focusOrLaunchApp(launchPath);
 });
 
-ipcMain.handle('terminal-create', (_event, { id, cols, rows, shellType }) => {
+ipcMain.handle('terminal-create', (_event, { id, cols, rows, shellType, cwd }) => {
   if (terminals.has(id)) {
     return { ok: true };
   }
@@ -437,7 +542,7 @@ ipcMain.handle('terminal-create', (_event, { id, cols, rows, shellType }) => {
     name: 'xterm-256color',
     cols: cols || 80,
     rows: rows || 24,
-    cwd: os.homedir(),
+    cwd: resolveTerminalCwd(cwd),
     env: process.env,
   });
 
@@ -485,4 +590,23 @@ ipcMain.on('terminal-destroy', (_event, { id }) => {
     }
     terminals.delete(id);
   }
+});
+
+ipcMain.handle('get-known-folders', () => getKnownFolders());
+
+ipcMain.handle('pick-folder', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: '窗口不可用' };
+  }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择要在终端中打开的文件夹',
+    properties: ['openDirectory'],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { ok: false, canceled: true };
+  }
+
+  return { ok: true, path: result.filePaths[0] };
 });
